@@ -2,15 +2,17 @@ import os
 import shutil
 import glob
 
-import cv2
-from PIL import Image
-import pytesseract
+#import cv2
+#from PIL import Image
+#import pytesseract
 
+import easyocr
+import torch
 from transformers import AutoModel
 from sentence_transformers.util import community_detection
 #from sentence_transformers.util import pytorch_cos_sim
 #from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.cluster import KMeans
+#from sklearn.cluster import KMeans
 
 ################################################################################
 # PARAMETROS
@@ -24,45 +26,19 @@ THRESHOLD = 0.9
 assert PASTA_DAS_IMAGENS
 
 ################################################################################
-# LER IMAGENS
+# LISTAR IMAGENS
 
 file_list = glob.glob(PASTA_DAS_IMAGENS)
-img_list = [
-  cv2.imread(img)
-  for file in file_list
-]
 
 ################################################################################
-# PRE-PROCESSAMENTO DAS IMAGENS
+# EXTRAIR TEXTO DAS IMAGENS
 
-img_list = [
-  cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-  for img in img_list
-]
-#cv2.imwrite('gray.png', img_list[0])
+reader = easyocr.Reader(['pt'])
+text_list = [' '.join(reader.readtext(file, detail=0)) for file in file_list]
 
-#img_list = [cv2.bilateralFilter(img, 17, 75, 75) for img in img_list]
-#cv2.imwrite('filtered.png', img_list[0])
-
-img_list = [
-  cv2.adaptiveThreshold(
-    img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2
-  ) for img in img_list
-]
-#cv2.imwrite('thresholded.png', img_list[0])
-
-#for i, img in enumerate(img_list):
-#  cv2.imwrite('preprocessed' + str(i) + ".png", img)
-
-################################################################################
-# EXTRACAO DE TEXTO
-
-text_list = [
-  pytesseract.image_to_string(
-    Image.fromarray(img), lang='por'
-  ) for img in img_list
-]
-del img_list
+# O reader deixa muita memoria para tras
+del reader, easyocr
+torch.cuda.empty_cache()
 
 ################################################################################
 # GERAR EMBEDDINGS
@@ -89,6 +65,8 @@ cluster_list = community_detection(
   min_community_size=MIN_COMMUNITY_SIZE,
   threshold=THRESHOLD
 )
+
+# sim_matrix = pytorch_cos_sim(embeddings_list, embeddings_list)
 
 ################################################################################
 # COPIAR ARQUIVOS SIMILARES PARA AS MESMAS PASTAS
